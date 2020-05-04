@@ -19,10 +19,10 @@ To complicate matters further, different CLI tools take different approaches to 
 ./kube-ahoy.py -n my-awesome-namespace
 ```
 
-I recall other cluster CLI's like *aws eks* having similar approaches to OpenShift. If they're identifieable by their context naming convention, then this feature can be easily extended to include them.
+I recall other cluster CLI's like *aws eks* having similar approaches to OpenShift's. If they're identifieable by their context naming convention, then this feature can be easily extended to include them.
 
 ### Interactive login
-One thing I like about OpenShift is how "oc login" prompts you for credentials and then updates your kubeconfig accordingly. I thought it might be cool to have something similar for other Kubernetes clusters. kube-ahoy provides a login feature, which includes some safeguards over raw kubectl to help prevent accidentally breaking exsiting objects in your kubeconfig.
+One thing I like about OpenShift is how *oc login* prompts you for credentials and then updates your kubeconfig accordingly. I thought it might be cool to have something similar for other Kubernetes clusters. kube-ahoy provides a login feature, which includes some safeguards over raw kubectl to help prevent accidentally breaking exsiting objects in your kubeconfig.
 
 ```
 ./kube-ahoy.py --login
@@ -31,10 +31,10 @@ One thing I like about OpenShift is how "oc login" prompts you for credentials a
 Caveats
 - It only works for token auth at the moment.
   - I considered adding client cert auth, but I've only encounted 2 client auth scenarios, and neither seemed like a fit for interactive logins:
-    - 1) Cluster UI's that provide you a kubeconfig file with which to connect
-    - 2) Cluster CLI's that update your kubeconfig directly
+    - Cluster UI's that provide you a kubeconfig file with which to connect
+    - Cluster CLI's that update your kubeconfig directly
   - To address these use cases, I might add an option in the future for selectively importing a context from another kubeconfig file.
-- Keep using "oc login" for your OpenShift clusters. It enforces its own naming convention, and it converts your OpenShift username/password into a token on the fly.
+- Keep using *oc login* for your OpenShift clusters. It enforces its own naming convention, and it converts your OpenShift username/password into a token on the fly.
 
 ## Design Considerations
 I'll probably end up using this script on multiple systems.  In order to make it easier to manage/distribute, I really wanted it to be self-contained within a single file.  To that end, the following standard libraries and command line tools were used instead of libraries that required a pip install:
