@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
 
-"""Kube Ahoy! Easily manage kubeconfig for your fleet of clusters.
+"""Kube Ahoy! Easily manage your kubeconfig for a whole fleet of Kubernetes clusters.
 
-In order to make this script easier to manage as new versions come out 
-and/or you add it to various systems, I really wanted it to be self-contained
-within a single file.  To that end, the following standard libraries and
-command line tools were used instead of libraries that required a pip install:
-- 'json' library instead of the PyYAML library
-- 'urllib' library instead of the 'requests' library
-- input() function instead of the 'readchar' library
-- kubectl command instead of the 'kubernetes' library
-
-I might make an exception for PyYAML if I add an --import feature later.
+Notes:
+- Tested in Python 3.7.7 on macOS
+- Tested in Python 3.6.9 on Ubuntu
+- I don't think this will run in Windows, as the curses library isn't the same
 """
 
 import os
