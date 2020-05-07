@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
 
-"""Kube Ahoy! Easily manage your kubeconfig for a whole fleet of Kubernetes clusters.
+"""
+Kube Ahoy! Easily manage your kubeconfig for a whole fleet of Kubernetes clusters.
+Original script and detailed README live here: https://github.com/TedSpinks/kube-ahoy
 
-Notes:
-- Tested in Python 3.7.7 on macOS
-- Tested in Python 3.6.9 on Ubuntu
+Testing:
+- Python 3.7.7 on macOS
+- Python 3.6.9 on Ubuntu
 - I don't think this will run in Windows, as the curses library isn't the same
+
+One of the goals of this script was to be a single, self-contained file. To that end, the following 
+standard libraries and command line tools were used instead of libraries that required a pip install:
+- 'json' library instead of the PyYAML library
+- 'urllib' library instead of the 'requests' library
+- input() function instead of the 'readchar' library
+- kubectl command instead of the 'kubernetes' library
 """
 
 import os
@@ -13,16 +22,13 @@ import math
 import logging
 import argparse
 from argparse import RawTextHelpFormatter # Preserve newlines
-import curses # Control the terminal screen; not available in Windows
+import curses # Control the terminal screen; not in Windows
 import json
 import subprocess
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 import ssl  # To turn off cert checking in urllib
-import base64  # for HTTP basic auth
-#import sys
-#import time
-#import getpass
+import base64  # For HTTP basic auth
 
 class Kubeconfig(object):
     """Manages the local kubeconfig and its contexts"""
@@ -589,7 +595,7 @@ def handle_namespace_arg(ns, kubeconfig):
     #### Non-OpenShift: simply update the current context with the new namespace
     else:
         confirm_msg = \
-            "Update non-OpenShift context '{}' with namespace '{}'? (Y/[N])".format(new_context_name, ns)
+            "Update non-OpenShift context '{}' with namespace '{}'? (Y/[N])".format(current_ctx, ns)
         if confirm(confirm_msg):
             kubeconfig.set_context(current_ctx, namespace=ns)
             print("Done.")
