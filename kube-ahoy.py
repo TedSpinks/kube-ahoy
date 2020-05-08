@@ -578,14 +578,14 @@ def handle_namespace_arg(ns, kubeconfig):
         name_parts = current_ctx.split('/')  # OpenShift style: [namespace]/<cluster>/<username>
         new_context_name = "{}/{}/{}".format(ns, name_parts[1], name_parts[2])
         if kubeconfig.exists_in(new_context_name, "contexts"):
-            if confirm("Change to existing context '{}'? (Y/[N])".format(new_context_name)):
+            if confirm("Change to existing context '{}'? [y/N]: ".format(new_context_name)):
                 kubeconfig.use_context(new_context_name)
                 print("Done.")
             else: print("Cancelled.")
         else:  # Specified context doesn't exist, so create it
             # Create a context with the current cluster and user, and the specified namespace
             confirm_msg = \
-                "Create new OpenShift-style context '{}' and make current? (Y/[N])".format(new_context_name)
+                "Create new OpenShift-style context '{}' and make current? [y/N]: ".format(new_context_name)
             if confirm(confirm_msg):
                 user_name="{}/{}".format(name_parts[2], name_parts[1])  # OpenShift style: <username>/<cluster>
                 kubeconfig.set_context(new_context_name, cluster=name_parts[1], namespace=ns, user_name=user)
@@ -595,7 +595,7 @@ def handle_namespace_arg(ns, kubeconfig):
     #### Non-OpenShift: simply update the current context with the new namespace
     else:
         confirm_msg = \
-            "Update non-OpenShift context '{}' with namespace '{}'? (Y/[N])".format(current_ctx, ns)
+            "Update non-OpenShift context '{}' with namespace '{}'? [y/N]: ".format(current_ctx, ns)
         if confirm(confirm_msg):
             kubeconfig.set_context(current_ctx, namespace=ns)
             print("Done.")

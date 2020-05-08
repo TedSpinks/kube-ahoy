@@ -13,7 +13,7 @@ I wrote this utility because each time I added a new cluster to my kubeconfig, I
 ```
 
 ### Clean namespace switching
-To complicate matters further, different CLI tools take different approaches to changing namespaces. In particular, OpenShift's *oc* creates a separate context for each namespace. kube-ahoy has a namespace switching funtion that determines whether your current context is for OpenShift or not (based on *oc login*'s naming convention), and updates the namespace appropriately.  For OpenShift clusters, it either finds an existing context with the namespace, or creates a new one. For non-OpenShift clusters, it simply updates the namespace field of the current context. In either case, it makes sure that the user can access the namespace before making any changes.
+To complicate matters further, different CLI tools take different approaches to changing namespaces. In particular, OpenShift's *oc* creates a separate context for each namespace. kube-ahoy has a namespace switching funtion that determines whether your current context is for OpenShift or not (based on *oc login*'s naming convention), and updates the namespace accordingly.  For OpenShift clusters, it either finds an existing context with the namespace, or creates a new one. For non-OpenShift clusters, it simply updates the namespace field of the current context. In either case, it makes sure that the user can access the namespace before making any changes.
 
 ```
 ./kube-ahoy.py -n my-awesome-namespace
@@ -22,7 +22,7 @@ To complicate matters further, different CLI tools take different approaches to 
 I recall other cluster CLI's having similar approaches to OpenShift's. If they're identifieable by their context naming convention, then this feature can be easily extended to include them.
 
 ### Interactive login
-One thing I like about OpenShift is how *oc login* prompts you for credentials and then updates your kubeconfig accordingly. I thought it might be cool to have something similar for other Kubernetes clusters. kube-ahoy provides a login feature, which includes some safeguards over raw kubectl to help prevent accidentally breaking exsiting objects in your kubeconfig.
+One thing I like about OpenShift is how *oc login* prompts you for credentials and then updates your kubeconfig for you. I thought it might be cool to have something similar for other Kubernetes clusters. kube-ahoy provides a login feature, which includes some safeguards over raw kubectl to help prevent accidentally breaking exsiting objects in your kubeconfig.
 
 ```
 ./kube-ahoy.py --login
@@ -30,11 +30,11 @@ One thing I like about OpenShift is how *oc login* prompts you for credentials a
 
 Caveats
 - It only works for token auth at the moment.
-  - I considered adding client cert auth, but I've only encounted 2 client auth scenarios, and neither seemed like a fit for interactive logins:
+  - I considered adding client cert auth, but I've only encounted 2 client auth scenarios, and neither seemed like a good fit for an interactive login:
     - Cluster UI's that provide you a kubeconfig file with which to connect
     - Cluster CLI's that update your kubeconfig directly
   - To address these use cases, I might add an option in the future for selectively importing a context from another kubeconfig file.
-- This doesn't replace *oc login* for your OpenShift clusters. *oc* enforces its own naming convention, and it converts your OpenShift username/password into a token on the fly.
+- This doesn't replace *oc login* for your OpenShift clusters. *oc login* converts your OpenShift username/password into a limited-duration token on the fly, and it enforces its naming convention for new objects.
 
 ## Design Considerations
 I'll probably end up using this script on multiple systems.  In order to make it easier to manage/distribute, I really wanted it to be self-contained within a single file.  To that end, the following standard libraries and command line tools were used instead of libraries that required a pip install:
