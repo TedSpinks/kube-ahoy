@@ -433,14 +433,14 @@ def compose_menu_choices(list, first_list_index, num_items_on_screen, fields_to_
     for i in range(first_list_index, first_list_index+num_items_on_screen):
         #if menu != "": menu += "\n"
         item = list[i]
-        menu_line = "({}) ".format(str(choice_num).zfill(2))  # Format choice number
+        menu_line = "({})".format(str(choice_num)).ljust(5, ' ')  # Format choice number
         for field in fields_to_print:
             menu_line += "{}: '{}'  ".format(field, item[field])
         menu += menu_line + "\n"
         choice_num += 1
     return menu
 
-def prompt_user_for_list_choice(list_item_singular, list, fields_to_print=['name'], prompt_msg = "", exit_prompt="X Cancel"):
+def prompt_user_for_list_choice(list_item_singular, list, fields_to_print=['name'], prompt_msg = "", exit_prompt="Cancel"):
     """Present a full-screen menu to the user. The menu items are comprised of the input list of
     dictionaries, and can span multiple screens. By default only a dictionary's 'name' field is
     printed in its menu item, since all kubeconfig objects have that field. Returns the list index 
@@ -471,9 +471,7 @@ def prompt_user_for_list_choice(list_item_singular, list, fields_to_print=['name
         nav_choices = ""
         if screen_index < max_screen_index: nav_choices += "(N)ext screen, "
         if screen_index > 0: nav_choices += "(P)revious screen, "
-        exit_char = exit_prompt[0]
-        assert (exit_char not in ['p','n']), "exit_prompt must not conflict with the 'n' and 'p' options"
-        nav_choices += "({}){}\n\nMake your choice and press ENTER: ".format(exit_char.upper(), exit_prompt[1:])
+        nav_choices += "(X)  {}\n\nMake your choice and press ENTER: ".format(exit_prompt)
         screen.addstr(nav_choices)
         #### Render screen and get user's choice
         screen.refresh()
@@ -481,11 +479,11 @@ def prompt_user_for_list_choice(list_item_singular, list, fields_to_print=['name
         if user_choice.lower() == 'p': screen_index = max(0, screen_index-1)
         if user_choice.lower() == 'n': screen_index = min(screen_index+1, max_screen_index)
         #### Exit the loop if user made a valid choice
-        if user_choice.lower() == exit_char.lower(): break
+        if user_choice.lower() == 'x': break
         if is_str_an_int_within_range(user_choice, 1, min(max_choices_per_screen, num_items)): break
     # Don't skip releasing the screen or the terminal will get wonky!
     end_curses_screen(screen)
-    if user_choice.lower() == exit_char.lower(): return None
+    if user_choice.lower() == 'x': return None
     # Convert the user's choice to a list index
     list_index = first_list_index + int(user_choice) - 1
     return list_index
