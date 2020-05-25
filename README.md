@@ -41,7 +41,7 @@ Caveats
   - You will still need to use *oc login* to re-authenticate to OpenShift every so often, which updates this token in your kubeconfig.
 
 ## Design Considerations
-I'll probably end up using this script on multiple systems.  In order to make it easier to manage/distribute, I really wanted it to be self-contained within a single file.  To that end, the following standard libraries and command line tools were used instead of libraries that required a pip install:
+I use this script on multiple systems.  In order to make it easier to manage/distribute, I really wanted it to be self-contained within a single file.  To that end, the following standard libraries and command line tools were used instead of libraries that required a pip install:
 
 - 'json' library instead of the PyYAML library.
 - input() function instead of the 'readchar' library.
