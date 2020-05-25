@@ -622,7 +622,7 @@ def prompt_user_details(cluster_name, kubeconfig):
         else:
             user_name = input("User '{}' already exists for a different cluster. Please enter a different name: ".format(user_name))
     if not use_existing_user:
-        auth_type = get_choice("Which authentication method? [b]asic username+password, or [t]oken: ", ['b','t'])
+        auth_type = get_choice("Which authentication method? (B) Basic username + password, or (T) Token: ", ['b','t'])
         if auth_type == 'b':
             username = input("Enter username: ")
             password = getpass.getpass("Enter password: ")
