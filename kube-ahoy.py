@@ -12,9 +12,10 @@ Testing:
 One of the goals of this script was to be a single, self-contained file. To that end, the following 
 standard libraries and command line tools were used instead of libraries that required a pip install:
 - 'json' library instead of the PyYAML library
-- 'urllib' library instead of the 'requests' library
 - input() function instead of the 'readchar' library
 - kubectl command instead of the 'kubernetes' library
+- curl command instead of the 'requests' library (also, kubectl uses curl, so it makes a more 
+                                                  apples-to-apples test than requests or urllib)
 """
 
 import os
@@ -25,14 +26,13 @@ from argparse import RawTextHelpFormatter # Preserve newlines
 import curses # Control the terminal screen; not in Windows
 import json
 import subprocess
-from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
-import ssl  # To turn off cert checking in urllib
-import base64  # For HTTP basic auth
+from getpass import getpass
+from base64 import b64encode # For HTTP basic auth
+from tempfile import mkstemp
 
 class Kubeconfig(object):
     """Manages the local kubeconfig and its contexts"""
-    kubeconfig_file = None  # optional, alternative kubeconfig file
+    kubeconfig_file = None  # optional, alternative kubeconfig file to use
     kubeconfig_data = None  # dict containing the active kubeconfig
     current_context = None  # name of the current context
 
@@ -62,16 +62,19 @@ class Kubeconfig(object):
             self.__safe_len(self.kubeconfig_data['users'])
         ))
 
-    def __run_cmd(self, cmd, input=None, fail_on_non_zero=True, no_log_cmd=False):
-        """Run a command in the OS"""
-        result = subprocess.run(cmd.split(), 
+    def __run_cmd(self, cmd, args_with_spaces=[], input=None, fail_on_non_zero=True, no_log_cmd=False):
+        """Run a command in the OS. Any command args that contain spaces should be 
+        passed separately in the args_with_spaces list param (don't include quotes)"""
+        result = subprocess.run(cmd.split() + args_with_spaces, 
             input=input, 
             stdout=subprocess.PIPE,   # send stderr to stdout
             stderr=subprocess.STDOUT)
         output = result.stdout.decode('utf-8').rstrip()
         returncode = result.returncode
+        for arg in args_with_spaces:
+            cmd += " " + arg
         if no_log_cmd: cmd = "[REDACTED]"
-        summary = "\n  Command: ".format(cmd) + \
+        summary = "\n  Command: {}".format(cmd) + \
                   "\n  Return code: {}".format(returncode) + \
                   "\n  Output:\n{}".format(output)
         if fail_on_non_zero: assert(returncode == 0), summary
@@ -83,6 +86,7 @@ class Kubeconfig(object):
         then return that single dictionary (not in a list)"""
         assert (type in ['clusters', 'users', 'contexts']), \
             "type arg must be one of: clusters, users, context"
+        if not self.kubeconfig_data[type]: return None
         if not name:
             return self.kubeconfig_data[type]
         else:
@@ -105,6 +109,7 @@ class Kubeconfig(object):
     def exists_in(self, obj_name, obj_type):
         assert (obj_type in ['contexts', 'clusters', 'users']), \
             "incorrect obj_type '{}', must be one of: context, cluster, user".format(obj_type)
+        if not self.kubeconfig_data[obj_type]: return False
         for object in self.kubeconfig_data[obj_type]:
             if object['name'] == obj_name: return True
         return False
@@ -114,6 +119,7 @@ class Kubeconfig(object):
         cmd = "kubectl config use-context " + context_name
         if self.kubeconfig_file: cmd += " --kubeconfig=" + kubeconfig_file
         self.__run_cmd(cmd)
+        self.current_context = context_name
 
     def set_context(self, context, cluster=None, user=None, namespace=None):
         """Update or create the specified context with the specified fields"""
@@ -126,12 +132,25 @@ class Kubeconfig(object):
         if self.kubeconfig_file: cmd += " --kubeconfig=" + kubeconfig_file
         self.__run_cmd(cmd)
 
-    def set_cluster(self, cluster_name, cluster_url, insecure=False):
+    def set_cluster(self, cluster_name, cluster_url, ca_cert=None, insecure=False):
         """Update or create the specified cluster with the specified fields"""
-        cmd = "kubectl config set-cluster {} --server={}".format(cluster_name, cluster_url)
-        if insecure: cmd += " --insecure-skip-tls-verify=true"
+        cmd = "kubectl config set-cluster " + cluster_name
+        if cluster_url: cmd += " --server=" cluster_url
         if self.kubeconfig_file: cmd += " --kubeconfig=" + kubeconfig_file
-        self.__run_cmd(cmd)
+        if ca_cert:
+            # Create a secure temp file for the CA cert, and make sure it gets deleted
+            fd, path = mkstemp(text=True)
+            cmd += " --certificate-authority={} --embed-certs=true".format(path)
+            try:
+                with os.fdopen(fd, 'w') as tmp:
+                    tmp.write(ca_cert)
+                    tmp.close()
+                self.__run_cmd(cmd)
+            finally:
+                os.remove(path)
+        else:
+            if insecure: cmd += " --insecure-skip-tls-verify=true"
+            self.__run_cmd(cmd)
 
     def set_user(self, user_name, token=None, username=None, password=None):
         """Update or create the specified user with the specified fields"""
@@ -145,6 +164,47 @@ class Kubeconfig(object):
         else:
             cmd += " --username={} --password={}".format(username, password)
             self.__run_cmd(cmd, no_log_cmd=True)
+
+    def test_auth(self, cluster_url, token=None, username=None, password=None, ca_cert=None, insecure=False):
+        """Test connecting to the cluster URL (format: 'https://my.cluster.com:6443') 
+        via the provided auth method."""
+        assert (token or (username and password)), \
+            "test_auth() requires at least one of: token, username+password"
+        timeout_secs = 10
+        cmd = "curl -v -XGET {}/api --connect-timeout {} ".format(cluster_url, timeout_secs)
+        args_with_spaces = []  # extra cmd args that have spaces (don't include quotes)
+        if token:
+            args_with_spaces.append('-HAuthorization: Bearer {}'.format(token))
+            sanitized_cmd = cmd +  ' -H "Authorization: Bearer {}"'.format("[REDACTED]")
+        else: 
+            #### base64 encode the username:password for Basic auth
+            creds_text = "{}:{}".format(username, password)
+            creds_bytes = creds_text.encode('ascii')
+            base64_bytes = b64encode(creds_bytes)
+            base64_text = base64_bytes.decode('ascii')
+            args_with_spaces.append('-HAuthorization: Basic {}'.format(base64_text))
+            sanitized_cmd = cmd +  ' -H "Authorization: Basic {}"'.format("[REDACTED]")
+        if ca_cert:
+            # Create a secure temp file for the CA cert, and make sure it gets deleted when done
+            fd, path = mkstemp(text=True)
+            cmd += " --with-ca-bundle=" + path
+            sanitized_cmd += " --with-ca-bundle=" + path
+            try:
+                with os.fdopen(fd, 'w') as tmp:
+                    tmp.write(ca_cert)
+                    tmp.close()  # Save the file
+                self.logger.debug("Testing authentication:\n" + sanitized_cmd)
+                output, returncode = self.__run_cmd(cmd, args_with_spaces=args_with_spaces, fail_on_non_zero=False, no_log_cmd=True)
+            finally:
+                os.remove(path) # Remove the file
+        else:
+            if insecure: 
+                cmd += " -k"
+                sanitized_cmd += " -k"
+            self.logger.debug("Testing authentication:\n" + sanitized_cmd)
+            output, returncode = self.__run_cmd(cmd, args_with_spaces=args_with_spaces, fail_on_non_zero=False, no_log_cmd=True)
+        if returncode == 0: return True
+        else: return False
 
     def is_namespace_valid(self, namespace):
         """Check whether the namespace is available in the current context"""
@@ -181,12 +241,13 @@ class Kubeconfig(object):
     def search_objects(self, obj_type, fields_to_match):
         """fields_to_find should be a dict with the key:value pairs to look for"""
         assert (obj_type in ['contexts', 'clusters', 'users']), \
-            "incorrect obj_type '{}', must be one of: context, cluster, user".format(obj_type)
+            "incorrect obj_type '{}', must be one of: contexts, clusters, users".format(obj_type)
+        if not self.kubeconfig_data[obj_type]: return []
         search_items = []
         # Loop through all objects
         for object in self.kubeconfig_data[obj_type]:
             singular_type = obj_type.rstrip('s')
-            match = True  # Tracks whether this object matches ALL the search fiekds
+            match = True  # Tracks whether this object matches ALL the search fields
             # compare all the fields of this object...
             for obj_field in object[singular_type]:
                 # ...to all the fields of the match criteria
@@ -200,6 +261,9 @@ class Kubeconfig(object):
 
     def summarize_context(self, context_name, indent_fields=2):
         """Render the context obj in a string that looks nice, for printing on-screen"""
+        if not self.kubeconfig_data['contexts']:
+            summary = "context: <none>"
+            return summary
         for context in self.kubeconfig_data['contexts']:
             if context['name'] == context_name:
                 summary = "context: '" + context['name'] + "'\n".ljust(indent_fields+2)
@@ -315,6 +379,38 @@ def confirm(msg, enter=False):
         if response.lower() == "y": return True
         if response.lower() == "n": return False
 
+def get_choice(msg, choices):
+    """The choices param must be a list of strings. Prints the message, and then
+    waits for the user to enter one of the strings in choices (case-insensitive)."""
+    valid_choice_entered = False
+    while not valid_choice_entered:
+        response = input(msg)
+        for potential_choice in choices:
+            if response.lower() == potential_choice.lower():
+                valid_choice_entered = True
+                break
+    return response
+
+def input_multiline(msg, end_line):
+    """Prints message and allows the user to enter a multiline string. Stops
+    prompting for lines when the user enters a line matching the end_line
+    param (case-insensitive). If end_line is '\n' then it stops prompting
+    when the user enters a blank line (press ENTER twice in a row)."""
+    print(msg)
+    all_lines = ""
+    first_line = True
+    while True:
+        line = input()
+        if line.lower() == end_line.lower(): break
+        if end_line == '\n' and line == "": break
+        # Add a preceding newline char if this is not the first line. Using
+        # a bool is better than checking (all_lines==True), because there is
+        # no confusion when the first line is blank.
+        if not first_line: all_lines += '\n'
+        first_line = False
+        all_lines += line
+    return all_lines
+
 def is_str_an_int_within_range(str_to_check, range_min, range_max):
     """Makes sure that the string, str_to_check, represents a valid int,
     and that the int falls within the specified range"""
@@ -341,52 +437,6 @@ def compose_menu_choices(list, first_list_index, num_items_on_screen, fields_to_
         choice_num += 1
     return menu
 
-def test_k8s_connectivity(url, token=None, username=None, password=None, insecure=False):
-    """Test connecting to the cluster URL via the specified auth method,
-    authentication is optional"""
-    timeout_secs = 10
-    url += "/api"
-    headers = None
-    if token:
-        headers = { 'Authorization' : "Bearer " + token }
-        req = Request(url, None, headers)
-        logging.debug("Attempting to connect this URL with token auth:\n'{}'".format(url))
-    elif username and password:
-        logging.warning("I haven't tested basic auth yet!")
-        # base64 encode the username:password for Basic auth
-        creds_text = "{}:{}".format(username, password)
-        creds_bytes = creds_text.encode('ascii')
-        base64_bytes = base64.b64encode(creds_bytes)
-        base64_text = base64_bytes.decode('ascii')
-        headers = { 'Authorization' : "Basic " + base64_text }
-        req = Request(url, None, headers)
-        logging.debug("Attempting to connect this URL with basic auth:\n'{}'".format(url))
-    else:
-        logging.debug("Attempting to connect this URL with no auth:\n'{}'".format(url))
-        req = Request(url)
-    try:
-        print(insecure)
-        if insecure:
-            ssl_ctx = ssl.create_default_context()
-            ssl_ctx.check_hostname = False
-            ssl_ctx.verify_mode = ssl.CERT_NONE
-            logging.debug("Skipping TLS verification")
-            response = urlopen(req, None, timeout_secs, context=ssl_ctx)
-        else:
-            response = urlopen(req, None, timeout_secs)  # Attempt the connection!
-        debug_msg = str(response.read())  # Some JSON text about the cluster
-        if debug_msg.find("serverAddressByClientCIDRs") != -1: success = True
-        else: success = False
-    except HTTPError as e:
-        success = False
-        debug_msg = "The server responder with error code {}".format(e.code)
-    except URLError as e:
-        success = False
-        debug_msg = "Could not reach server. Reason: {}".format(e.reason)
-    if success: logging.debug(debug_msg)
-    else: logging.error(debug_msg)
-    return success
-
 def prompt_user_for_list_choice(list_item_singular, list, fields_to_print=['name'], prompt_msg = ""):
     """Present a full-screen menu to the user. The menu items are comprised of the input list of
     dictionaries, and can span multiple screens. By default only a dictionary's 'name' field is
@@ -400,7 +450,6 @@ def prompt_user_for_list_choice(list_item_singular, list, fields_to_print=['name
     num_items = len(list)  # Total number of items; can span multiple screens
     screen_index = 0  # When list spans multiple screens, this is the screen number
     max_screen_index = math.ceil(num_items / max_choices_per_screen) - 1
-    # 14 11 21 0 1
     #### Screen refresh loop
     while True:
         screen.erase()
@@ -441,6 +490,9 @@ def handle_context_arg(kubeconfig):
     the choices by first choosing a cluster, then a user, and finally the context"""
     #### Prompt for the cluster
     clusters = kubeconfig.get_clusters()
+    if not clusters:
+        print("Kubeconfig does not contain any clusters.")
+        return
     cluster_index = prompt_user_for_list_choice("cluster", clusters)
     if cluster_index == None: 
         print("Cancelled."); return
@@ -489,6 +541,7 @@ def prompt_cluster_details(cluster_url, kubeconfig):
     """Prompt the user for details about the cluster, including how to handle
     any conflicts with existing clusters in the kubeconfig"""
     use_existing_cluster = False
+    ca_cert = None
     insecure = None  # Only relevant for new/update, not re-use
     matching_clusters = kubeconfig.search_objects("clusters", {'server': cluster_url})
     if matching_clusters:
@@ -511,15 +564,13 @@ def prompt_cluster_details(cluster_url, kubeconfig):
         if kubeconfig.get_clusters(cluster_name):
             overwrite = confirm("There is already a cluster called '{}', overwrite it? [y/N]".format(cluster_name))
             if not overwrite: print("Cancelled."); return None, None, None
-        while True:
-            insecure_resp = input("Skip TLS verification? [y/N]")
-            if insecure_resp.lower() == 'y':
-                insecure = True
-                break
-            if insecure_resp.lower() == 'n' or insecure_resp == '':
-                insecure = False
-                break
-    return cluster_name, use_existing_cluster, insecure
+        if confirm("Enter a CA cert for TLS verification? [y/N]"):
+            insecure = False
+            ca_cert = input_multiline("Paste your CA cert. When done, enter a blank line (press ENTER twice):", '\n')
+        if not ca_cert:
+            print("No CA cert.")
+            insecure = confirm("Skip TLS verification? [y/N]")
+    return cluster_name, use_existing_cluster, ca_cert, insecure
 
 def compose_login_summary(cluster_name, use_existing_cluster, user_name, context_name):
     summary = "Login details:\n"
@@ -530,23 +581,32 @@ def compose_login_summary(cluster_name, use_existing_cluster, user_name, context
     summary += "Proceed with kubeconfig changes? [y/N]"
     return summary
 
+def prompt_for_token_or_userpass():
+    auth_type = get_choice("Which authentication method? [b]asic username+password, or [t]oken: ", ['b','t'])
+    token = None
+    username = None
+    password = None
+    if auth_type == 'b':
+        username = input("Enter username: ")
+        password = getpass("Enter password: ")
+    if auth_type == 't':
+        token = input("Enter token: ")
+    return token, username, password
+
 def handle_login_arg(kubeconfig):
     """Series of interactive prompts to add a new cluster/user/context and make the
     context the current context. Optionally re-use or update an existing cluster."""
     cluster_url = input("Enter the cluster URL (example https://my.example.com:8443): ")
-    cluster_name, use_existing_cluster, insecure = prompt_cluster_details(cluster_url, kubeconfig)
+    cluster_name, use_existing_cluster, ca_cert, insecure = prompt_cluster_details(cluster_url, kubeconfig)
     if not cluster_name: return  # User cancelled the login process
     user_name = input("Enter a descriptive name (no spaces) for the User (example janedoe--mycluster): ")
     # Make sure the user object doesn't already exist
-    if kubeconfig.get_users(user_name):
-        while True:
-            new_user_name = input("User '{}' already exists, please enter a different name: ".format(user_name))
-            if new_user_name != user_name and new_user_name != "":
-                user_name = new_user_name
-                break
-    token = input("Enter your token: ")
-    server_ok = test_k8s_connectivity(cluster_url, token=token, insecure=insecure)
-    if not server_ok: return  # test_k8s_connectivity() will have already displayed the error message
+    while True:
+        if not kubeconfig.get_users(user_name): break
+        user_name = input("User '{}' already exists, please enter a different name: ".format(user_name))
+    token, username, password = prompt_for_token_or_userpass()
+    server_ok = kubeconfig.test_auth(cluster_url, token, username, password)
+    if not server_ok: return  # test_auth() will have already displayed the error message
     suggested_context_name = cluster_name + "--" + user_name  # Different separator than OpenShift, no namespace
     context_name = input("Enter a descriptive name (no spaces) for this context [{}]: ".format(suggested_context_name))
     if not context_name: context_name = suggested_context_name
@@ -557,12 +617,12 @@ def handle_login_arg(kubeconfig):
             return
         overwrite = confirm("There is already a context called '{}', overwrite it? [y/N]".format(context_name))
         if not overwrite: print("Cancelled."); return
-    #### Create the cluster (if needed), user, and context
+    #### Create the cluster (if needed), the user, and the context
     msg = compose_login_summary(cluster_name, use_existing_cluster, user_name, context_name)
     if confirm(msg):
         if not use_existing_cluster:
-            kubeconfig.set_cluster(cluster_name, cluster_url, insecure)
-        kubeconfig.set_user(user_name, token=token)
+            kubeconfig.set_cluster(cluster_name, cluster_url, ca_cert, insecure)
+        kubeconfig.set_user(user_name, username=username, password=password, token=token)
         kubeconfig.set_context(context_name, cluster=cluster_name, user=user_name)
         kubeconfig.use_context(context_name)
     else: print("Cancelled.")
