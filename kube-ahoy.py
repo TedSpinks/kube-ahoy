@@ -625,7 +625,7 @@ def prompt_user_details(cluster_name, kubeconfig):
         auth_type = get_choice("Which authentication method? [b]asic username+password, or [t]oken: ", ['b','t'])
         if auth_type == 'b':
             username = input("Enter username: ")
-            password = getpass("Enter password: ")
+            password = getpass.getpass("Enter password: ")
         if auth_type == 't':
             token = input("Enter token: ")
     return user_name, use_existing_user, token, username, password
@@ -634,7 +634,7 @@ def handle_login_arg(kubeconfig):
     """Handle the --login command line arg. Presents a series of interactive prompts to add a new 
     cluster/user/context, and make the context the current context. Optionally reuse or update existing 
     cluster and/or user objects."""
-    cluster_url = input("Enter the cluster URL (example https://my.example.com:8443): ")
+    cluster_url = input("Enter the cluster URL (example https://my.example.com:6443): ")
     cluster_name, use_existing_cluster, ca_cert, insecure = prompt_cluster_details(cluster_url, kubeconfig)
     if not cluster_name: return  # User cancelled the login process
     user_name, use_existing_user, token, username, password = prompt_user_details(cluster_name, kubeconfig)
