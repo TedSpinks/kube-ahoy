@@ -261,6 +261,20 @@ class Kubeconfig(object):
             if match: search_items.append(object)
         return search_items
 
+    def get_users_of_cluster(self, cluster_name):
+        """Return a list of user dicts that are in the same contexts as the specified cluster"""
+        #### Get all the contexts of the specified cluster
+        fields_to_match = {'cluster': cluster_name}
+        contexts = self.search_objects('contexts', fields_to_match)
+        #### Read the user (name) from each context, and look up the user object
+        users = []
+        for ctx in contexts:
+            user_name = ctx['context']['user']
+            user_obj = self.get_users(user_name)
+            if user_obj not in users:
+                users.append(user_obj)
+        return users
+
     def summarize_context(self, context_name, indent_fields=2):
         """Render the context obj in a string that looks nice, for printing on-screen"""
         if not self.kubeconfig_data['contexts']:
@@ -303,19 +317,6 @@ def get_args():
     pick_one.add_argument('-c','--context', action='store_true', help=ctx_help)
     pick_one.add_argument('-n','--namespace', metavar='<name>', action='store', help=ns_help)
     return parser.parse_args()
-
-def get_users_of_cluster(cluster_name, kubeconfig):
-    #### Get all the contexts of the specified cluster
-    fields_to_match = {'cluster': cluster_name}
-    contexts = kubeconfig.search_objects('contexts', fields_to_match)
-    #### Read the user (name) from each context, and look up the user object
-    users = []
-    for ctx in contexts:
-        user_name = ctx['context']['user']
-        user_obj = kubeconfig.get_users(user_name)
-        if user_obj not in users:
-            users.append(user_obj)
-    return users
 
 def get_matching_contexts(cluster_name, user_name, kubeconfig):
     """Get all contexts with the specifid cluster and user, and return
@@ -502,7 +503,7 @@ def handle_context_arg(kubeconfig):
         print("Cancelled."); return
     cluster_name = (clusters[cluster_index]['name'])
     #### Prompt for one of the cluster's users
-    users = get_users_of_cluster(cluster_name, kubeconfig)
+    users = kubeconfig.get_users_of_cluster(cluster_name)
     if len(users) == 0: 
         raise LookupError("Cluster '{}' doesn't have any users defined".format(cluster_name))
     if len(users) == 1:
@@ -604,7 +605,7 @@ def prompt_user_details(cluster_name, kubeconfig):
         #### Make sure the user object doesn't already exist
         if not kubeconfig.get_users(user_name): break
         #### If it exists, see if the existing object is for the same cluster, and could therefore be reused or overwritten
-        user_objects = get_users_of_cluster(cluster_name, kubeconfig)
+        user_objects = kubeconfig.get_users_of_cluster(cluster_name)
         user_object_names = [ user['name'] for user in user_objects ]
         if user_name in user_object_names:
             msg = "User '{}' of cluster '{}' already exists. Do you want to (r)euse, (o)verwrite, or (c)ancel? ".format(user_name, cluster_name)
