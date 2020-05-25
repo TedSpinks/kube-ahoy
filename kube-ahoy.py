@@ -22,13 +22,12 @@ import os
 import math
 import logging
 import argparse
-from argparse import RawTextHelpFormatter # Preserve newlines
-import curses # Control the terminal screen; not in Windows
+import curses    # Control the terminal screen; not in Windows
 import json
 import subprocess
-from getpass import getpass
-from base64 import b64encode # For HTTP basic auth
-from tempfile import mkstemp
+import getpass
+import base64
+import tempfile
 
 class Kubeconfig(object):
     """Manages the local kubeconfig and its contexts"""
@@ -142,7 +141,7 @@ class Kubeconfig(object):
         if self.kubeconfig_file: cmd += " --kubeconfig=" + self.kubeconfig_file
         if ca_cert:
             # Create a secure temp file for the CA cert, and make sure it gets deleted
-            fd, path = mkstemp(text=True)
+            fd, path = tempfile.mkstemp(text=True)
             cmd += " --certificate-authority={} --embed-certs=true".format(path)
             try:
                 with os.fdopen(fd, 'w') as tmp:
@@ -183,13 +182,13 @@ class Kubeconfig(object):
             #### base64 encode the username:password for Basic auth
             creds_text = "{}:{}".format(username, password)
             creds_bytes = creds_text.encode('ascii')
-            base64_bytes = b64encode(creds_bytes)
+            base64_bytes = base64.b64encode(creds_bytes)
             base64_text = base64_bytes.decode('ascii')
             args_with_spaces.append('-HAuthorization: Basic {}'.format(base64_text))
             sanitized_cmd = cmd +  ' -H "Authorization: Basic {}"'.format("[REDACTED]")
         if ca_cert:
             # Create a secure temp file for the CA cert, and make sure it gets deleted when done
-            fd, path = mkstemp(text=True)
+            fd, path = tempfile.mkstemp(text=True)
             cmd += " --cacert " + path
             sanitized_cmd += " --cacert " + path
             try:
@@ -296,7 +295,7 @@ def get_args():
     ctx_help = "change to a different cluster/context in kubeconfig, via prompts"
     ns_help = "change to a different namespace in the current cluster"
     parser = argparse.ArgumentParser(description=desc, 
-        formatter_class=RawTextHelpFormatter)  # Preserve newlines
+        formatter_class=argparse.RawTextHelpFormatter)  # Preserve newlines
     parser.add_argument('-d','--debug', action='store_true', help="enable debug-level logging")
     parser.add_argument('--kubeconfig', metavar='<filepath>', action='store', help=kubeconfig_help)
     pick_one = parser.add_mutually_exclusive_group(required=False)
