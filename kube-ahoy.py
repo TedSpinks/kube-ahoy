@@ -434,7 +434,7 @@ def compose_menu_choices(list, first_list_index, num_items_on_screen, fields_to_
     for i in range(first_list_index, first_list_index+num_items_on_screen):
         #if menu != "": menu += "\n"
         item = list[i]
-        menu_line = "({})".format(str(choice_num)).ljust(5, ' ')  # Format choice number
+        menu_line = "({}) ".format(str(choice_num)).rjust(5, ' ')  # Format choice number
         for field in fields_to_print:
             menu_line += "{}: '{}'  ".format(field, item[field])
         menu += menu_line + "\n"
@@ -470,9 +470,9 @@ def prompt_user_for_list_choice(list_item_singular, list, fields_to_print=['name
         screen.addstr(menu)
         #### Compose navigation choices
         nav_choices = ""
-        if screen_index < max_screen_index: nav_choices += "(N)ext screen, "
-        if screen_index > 0: nav_choices += "(P)revious screen, "
-        nav_choices += "(X)  {}\n\nMake your choice and press ENTER: ".format(exit_prompt)
+        if screen_index < max_screen_index: nav_choices += " (N) Next screen,"
+        if screen_index > 0: nav_choices += " (P) Previous screen,"
+        nav_choices += " (X) {}\n\nMake your choice and press ENTER: ".format(exit_prompt)
         screen.addstr(nav_choices)
         #### Render screen and get user's choice
         screen.refresh()
@@ -531,7 +531,7 @@ def handle_context_arg(kubeconfig):
         message =  "Change the current context?\n"
         summary =  "  From context: {}\n".format(kubeconfig.current_context)
         summary += "  To " + kubeconfig.summarize_context(new_context_name, indent_fields=5)
-        if confirm_in_curses(message + summary + "\n\nConfirm y/[N]: "):
+        if confirm_in_curses(message + summary + "\n\nConfirm (Y/N) [N]: "):
             kubeconfig.use_context(new_context_name)
             print("Successfully changed context\n{}".format(summary))
         else: print("Cancelled.")
@@ -551,7 +551,7 @@ def prompt_cluster_details(cluster_url, kubeconfig):
     matching_clusters = kubeconfig.search_objects("clusters", {'server': cluster_url})
     if matching_clusters:
         msg = "Kubeconfig already has these cluster(s) with the same URL. Would you like to reuse one?\n"
-        list_index = prompt_user_for_list_choice("cluster", matching_clusters, prompt_msg=msg, exit_prompt="X No thanks, I'll create or overwrite one")
+        list_index = prompt_user_for_list_choice("cluster", matching_clusters, prompt_msg=msg, exit_prompt="No thanks, I'll create or overwrite one")
         if list_index == None:
             print("Not re-using an existing cluster.")
             use_existing_cluster = False
@@ -567,20 +567,20 @@ def prompt_cluster_details(cluster_url, kubeconfig):
         cluster_name = input("Enter a descriptive name (no spaces) for the cluster [{}]: ".format(suggested_cluster_name))
         if not cluster_name: cluster_name = suggested_cluster_name
         if kubeconfig.get_clusters(cluster_name):
-            overwrite = confirm("There is already a cluster called '{}', overwrite it? y/[N]: ".format(cluster_name))
+            overwrite = confirm("There is already a cluster called '{}', overwrite it? (Y/N) [N]: ".format(cluster_name))
             if not overwrite: print("Cancelled."); return None, None, None, None
-        if confirm("Enter a CA cert for TLS verification? This is for untrusted CA's. y/[N]: "):
+        if confirm("Enter a CA cert for TLS verification? This is for untrusted CA's. (Y/N) [N]: "):
             insecure = False
             while True:
                 ca_cert = input_multiline("Paste your CA cert. When done, enter a blank line (press ENTER twice):", '\n')
                 bad_cert = (ca_cert.find("BEGIN CERTIFICATE") == -1) or (ca_cert.find("END CERTIFICATE") == -1)
                 if not bad_cert: break
-                msg = 'Not a valid PEM cert. It should start/end with "-----BEGIN CERTIFICATE-----" and "-----END CERTIFICATE-----".\nTry again? [Y]/n'
+                msg = 'Not a valid PEM cert. It should start/end with "-----BEGIN CERTIFICATE-----" and "-----END CERTIFICATE-----".\nTry again? (Y/N) [Y]: '
                 if not confirm(msg, enter=True):
                     ca_cert = None
                     break
         if not ca_cert:
-            insecure = confirm("Skip TLS verification (insecure)? For testing with self-signed certs, or untrusted CA's. y/[N]: ")
+            insecure = confirm("Skip TLS verification (insecure)? For testing with self-signed certs, or untrusted CA's. (Y/N) [N]: ")
     return cluster_name, use_existing_cluster, ca_cert, insecure
 
 def compose_login_summary(cluster_name, use_existing_cluster, user_name, context_name):
@@ -589,7 +589,7 @@ def compose_login_summary(cluster_name, use_existing_cluster, user_name, context
     summary += "  cluster: '{}'\n".format(cluster_name)
     summary += "  user: '{}'\n".format(user_name)
     summary += "  context: '{}'\n".format(context_name)
-    summary += "Proceed with kubeconfig changes? y/[N]: "
+    summary += "Proceed with kubeconfig changes? (Y/N) [N]: "
     return summary
 
 def prompt_user_details(cluster_name, kubeconfig):
@@ -608,8 +608,8 @@ def prompt_user_details(cluster_name, kubeconfig):
         user_objects = kubeconfig.get_users_of_cluster(cluster_name)
         user_object_names = [ user['name'] for user in user_objects ]
         if user_name in user_object_names:
-            msg = "User '{}' of cluster '{}' already exists. Do you want to (r)euse, (o)verwrite, or (c)ancel? ".format(user_name, cluster_name)
-            choice = get_choice(msg, ['r', 'o', 'c'])
+            msg = "User '{}' of cluster '{}' already exists. (R) Reuse, (O) Overwrite, or (X) Cancel: ".format(user_name, cluster_name)
+            choice = get_choice(msg, ['r', 'o', 'x'])
             if choice == 'r': 
                 use_existing_user = True; 
                 break
@@ -655,7 +655,7 @@ def handle_login_arg(kubeconfig):
         if kubeconfig.is_context_openshift(context_name):
             print("There is already an OpenShift context called '{}'. You should use 'oc login' to manage it.".format(context_name))
             return
-        overwrite = confirm("There is already a context called '{}', overwrite it? y/[N]: ".format(context_name))
+        overwrite = confirm("There is already a context called '{}', overwrite it? (Y/N) [N]: ".format(context_name))
         if not overwrite: print("Cancelled."); return
     #### Create the cluster (if needed), the user, and the context
     msg = compose_login_summary(cluster_name, use_existing_cluster, user_name, context_name)
@@ -680,14 +680,14 @@ def handle_namespace_arg(ns, kubeconfig):
         name_parts = current_ctx.split('/')  # OpenShift style: [namespace]/<cluster>/<username>
         new_context_name = "{}/{}/{}".format(ns, name_parts[1], name_parts[2])
         if kubeconfig.exists_in(new_context_name, "contexts"):
-            if confirm("Change to existing context '{}'? [y/N]: ".format(new_context_name)):
+            if confirm("Change to existing context '{}'? (Y/N) [N]: ".format(new_context_name)):
                 kubeconfig.use_context(new_context_name)
                 print("Done.")
             else: print("Cancelled.")
         else:  # Specified context doesn't exist, so create it
             # Create a context with the current cluster and user, and the specified namespace
             confirm_msg = \
-                "Create new OpenShift-style context '{}' and make current? y/[N]: ".format(new_context_name)
+                "Create new OpenShift-style context '{}' and make current? (Y/N) [N]: ".format(new_context_name)
             if confirm(confirm_msg):
                 user_name="{}/{}".format(name_parts[2], name_parts[1])  # OpenShift style: <username>/<cluster>
                 kubeconfig.set_context(new_context_name, cluster=name_parts[1], namespace=ns, user_name=user)
@@ -697,7 +697,7 @@ def handle_namespace_arg(ns, kubeconfig):
     #### Non-OpenShift: simply update the current context with the new namespace
     else:
         confirm_msg = \
-            "Update non-OpenShift context '{}' with namespace '{}'? y/[N]: ".format(current_ctx, ns)
+            "Update non-OpenShift context '{}' with namespace '{}'? (Y/N) [N]: ".format(current_ctx, ns)
         if confirm(confirm_msg):
             kubeconfig.set_context(current_ctx, namespace=ns)
             print("Done.")
