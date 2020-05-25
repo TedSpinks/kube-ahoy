@@ -30,7 +30,7 @@ import base64
 import tempfile
 
 class Kubeconfig(object):
-    """Manages the local kubeconfig and its contexts"""
+    """Manages the local kubeconfig and its contexts. Requires kubectl to be installed."""
     kubeconfig_file = None  # optional, alternative kubeconfig file to use
     kubeconfig_data = None  # dict containing the active kubeconfig
     current_context = None  # name of the current context
