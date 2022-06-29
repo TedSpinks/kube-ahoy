@@ -277,9 +277,10 @@ class Kubeconfig(object):
 
     def summarize_context(self, context_name, indent_fields=2):
         """Render the context obj in a string that looks nice, for printing on-screen"""
-        if not self.kubeconfig_data['contexts']:
+        if not self.kubeconfig_data['contexts'] or context_name == "":
             summary = "context: <none>"
             return summary
+        summary =  "Current context name \"" + context_name + "\" does not match any contexts."
         for context in self.kubeconfig_data['contexts']:
             if context['name'] == context_name:
                 summary = "context: '" + context['name'] + "'\n".ljust(indent_fields+2)
