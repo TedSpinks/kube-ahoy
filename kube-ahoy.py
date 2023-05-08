@@ -691,7 +691,7 @@ def handle_namespace_arg(ns, kubeconfig):
                 "Create new OpenShift-style context '{}' and make current? (Y/N) [N]: ".format(new_context_name)
             if confirm(confirm_msg):
                 user_name="{}/{}".format(name_parts[2], name_parts[1])  # OpenShift style: <username>/<cluster>
-                kubeconfig.set_context(new_context_name, cluster=name_parts[1], namespace=ns, user_name=user)
+                kubeconfig.set_context(new_context_name, cluster=name_parts[1], namespace=ns, user_name=user_name)
                 kubeconfig.use_context(new_context_name)
                 print("Done.")
             else: print("Cancelled.")
