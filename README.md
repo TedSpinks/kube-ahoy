@@ -49,4 +49,4 @@ I use this script on multiple systems.  In order to make it easier to manage/dis
 - kubectl command instead of the 'kubernetes' library.
 
 ## So why is it called "kube-ahoy"?
-Given Kubernetes' nautical theme, "ahoy!" is the only sensible greeting when boarding a ship... err... Kubernetes cluster.  Also, "kube-ahoy" kinda reminds me of that cereal, Chips Ahoy, which is all about having cookies for breakfast. And that makes the pirate in me smile.
+Given Kubernetes' nautical theme, "ahoy!" is the only sensible greeting when boarding a ship... err... Kubernetes cluster.
