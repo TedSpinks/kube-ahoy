@@ -1,7 +1,7 @@
 # kube-ahoy
 Kube Ahoy! Easily manage your kubeconfig for a whole fleet of Kubernetes clusters.
 
-### A "plethora" of contexts
+### A plethora of contexts
 I wrote this utility because each time I added a new cluster to my kubeconfig, I found that keeping everything in my kubeconfig straight got a little harder. In particular, I found that OpenShift clusters caused my kubeconfig to practically explode with contexts. Kube-ahoy provides an easy, interactive menu to help you switch contexts by choosing a cluster, user, and namespace.
 
 ```
